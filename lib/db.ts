@@ -1,36 +1,38 @@
-// lib/db.ts
 import { Index } from "@upstash/vector";
 import { Message } from 'ai';
 
-// Define the structure of metadata we store with each conversation
-export interface ConversationMetadata {
+
+// Core types for our conversation system
+type ConversationMetadata = {
   timestamp: string;
   userId: string;
   summary?: string;
   messageCount: number;
-  messages: Message[]; // Store the actual messages in metadata
+  messages: Message[];
 }
 
-// Main interface for working with conversation vectors
-export interface ConversationVector {
+type ConversationVector = {
   id: string;
   vector: number[];
   metadata: ConversationMetadata;
 }
 
-// Ensure required environment variables are present
-if (!process.env.UPSTASH_VECTOR_REST_URL || !process.env.UPSTASH_VECTOR_REST_TOKEN) {
-  throw new Error("Missing required Upstash Vector environment variables");
+// Initialize vector database with environment variables
+const VECTOR_URL = process.env.UPSTASH_VECTOR_REST_URL;
+const VECTOR_TOKEN = process.env.UPSTASH_VECTOR_REST_TOKEN;
+
+if (!VECTOR_URL || !VECTOR_TOKEN) {
+  throw new Error("Missing Upstash Vector configuration");
 }
 
-// Create a singleton instance of the vector database
-export const vectorIndex = new Index({
-  url: process.env.UPSTASH_VECTOR_REST_URL,
-  token: process.env.UPSTASH_VECTOR_REST_TOKEN,
+// Create database instance
+const vectorIndex = new Index({
+  url: VECTOR_URL,
+  token: VECTOR_TOKEN,
 });
 
-// Store a new conversation or update an existing one
-export async function storeConversation(conversation: ConversationVector) {
+// Database operations
+async function storeConversation(conversation: ConversationVector): Promise<boolean> {
   try {
     await vectorIndex.upsert({
       id: conversation.id,
@@ -44,30 +46,27 @@ export async function storeConversation(conversation: ConversationVector) {
   }
 }
 
-// Retrieve all conversations for a specific user
-export async function getConversations(userId: string) {
+async function getConversations(userId: string) {
   try {
-    // Query with a zero vector to get all conversations, filtered by userId
-    const zeroVector = new Array(1536).fill(0);
-    const results = await vectorIndex.query({
-      vector: zeroVector,
+    const defaultVector = new Array(1536).fill(0);
+    // Use a string filter expression instead of a function
+    return await vectorIndex.query({
+      vector: defaultVector,
       topK: 100,
       includeMetadata: true,
-      filter: (metadata) => metadata.userId === userId,
+      filter: `metadata.userId = "${userId}"`,  // Changed to string filter syntax
     });
-    return results;
   } catch (error) {
     console.error("Error fetching conversations:", error);
     throw error;
   }
 }
 
-// Delete all conversations for a specific user
-export async function deleteConversations(userId: string) {
+async function deleteConversations(userId: string): Promise<boolean> {
   try {
     const conversations = await getConversations(userId);
     await Promise.all(
-      conversations.map((conv) => vectorIndex.delete(conv.id))
+      conversations.map(conv => vectorIndex.delete(conv.id))
     );
     return true;
   } catch (error) {
@@ -75,3 +74,12 @@ export async function deleteConversations(userId: string) {
     throw error;
   }
 }
+
+export {
+  type ConversationMetadata,
+  type ConversationVector,
+  vectorIndex,
+  storeConversation,
+  getConversations,
+  deleteConversations,
+};

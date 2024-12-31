@@ -2,7 +2,7 @@
 import { cookies } from 'next/headers'
 
 export async function auth() {
-  const cookieStore = cookies()
+  const cookieStore = await cookies()
   const token = cookieStore.get('token')
   
   // In a real application, you would validate the token here

@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   title: 'Enhanced AI Agent Chat',
   description: 'Chat with an AI agent using Next.js and AI SDK with advanced features',
 }
+// app/layout.tsx or app/page.tsx
+
 
 export default function RootLayout({
   children,
