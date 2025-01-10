@@ -1,8 +1,7 @@
-// app/page.tsx
 'use client'
 
 import { useChat } from 'ai/react'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,16 +14,7 @@ export default function Home() {
   const [conversations, setConversations] = useState<Record<string, string>>({})
   const { toast } = useToast()
 
-  // Fetch conversations when component mounts
-  useEffect(() => {
-    fetchConversations()
-    
-      // Set a mock token for development
-      document.cookie = `token=${process.env.NEXT_PUBLIC_AUTH_TOKEN}; path=/;`
-  
-  }, [])
-
-  const fetchConversations = async () => {
+  const fetchConversations = useCallback(async () => {
     try {
       const response = await fetch('/api/conversations')
       if (response.ok) {
@@ -33,20 +23,29 @@ export default function Home() {
       } else {
         throw new Error('Failed to fetch conversations')
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load conversation history'
       toast({
         title: "Error",
-        description: "Failed to load conversation history",
+        description: errorMessage,
         variant: "destructive",
       })
     }
-  }
+  }, [toast])
 
-  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    fetchConversations()
+    document.cookie = `token=${process.env.NEXT_PUBLIC_AUTH_TOKEN}; path=/;`
+  }, [fetchConversations])
+
+  const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     setIsTyping(true)
-    handleSubmit(e)
-      .then(() => fetchConversations()) // Refresh conversations after new message
-      .finally(() => setIsTyping(false))
+    try {
+      await handleSubmit(e)
+      await fetchConversations()
+    } finally {
+      setIsTyping(false)
+    }
   }
 
   const clearHistory = async () => {
@@ -62,10 +61,11 @@ export default function Home() {
       } else {
         throw new Error('Failed to clear history')
       }
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to clear chat history'
       toast({
         title: "Error",
-        description: "Failed to clear chat history",
+        description: errorMessage,
         variant: "destructive",
       })
     }
@@ -75,10 +75,11 @@ export default function Home() {
     try {
       const loadedMessages = JSON.parse(conversations[conversationId])
       setMessages(loadedMessages)
-    } catch (error) {
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load conversation'
       toast({
         title: "Error",
-        description: "Failed to load conversation",
+        description: errorMessage,
         variant: "destructive",
       })
     }
@@ -113,7 +114,7 @@ export default function Home() {
             <h3 className="font-semibold mb-2">History</h3>
             {Object.entries(conversations)
               .sort((a, b) => parseInt(b[0]) - parseInt(a[0]))
-              .map(([id, convo]) => (
+              .map(([id]) => (
                 <Button
                   key={id}
                   variant="ghost"
